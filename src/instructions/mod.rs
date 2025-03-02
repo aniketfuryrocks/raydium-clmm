@@ -4,12 +4,6 @@ pub use create_pool::*;
 pub mod open_position;
 pub use open_position::*;
 
-pub mod open_position_v2;
-pub use open_position_v2::*;
-
-pub mod open_position_with_token22_nft;
-pub use open_position_with_token22_nft::*;
-
 pub mod close_position;
 pub use close_position::*;
 
