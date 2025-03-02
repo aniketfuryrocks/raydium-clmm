@@ -1,23 +1,8 @@
 pub mod create_pool;
 pub use create_pool::*;
 
-pub mod open_position;
-pub use open_position::*;
-
 pub mod close_position;
 pub use close_position::*;
-
-pub mod increase_liquidity;
-pub use increase_liquidity::*;
-
-pub mod increase_liquidity_v2;
-pub use increase_liquidity_v2::*;
-
-pub mod decrease_liquidity;
-pub use decrease_liquidity::*;
-
-pub mod decrease_liquidity_v2;
-pub use decrease_liquidity_v2::*;
 
 pub mod swap;
 pub use swap::*;
@@ -39,6 +24,3 @@ pub use set_reward_params::*;
 
 pub mod collect_remaining_rewards;
 pub use collect_remaining_rewards::*;
-
-pub mod admin;
-pub use admin::*;

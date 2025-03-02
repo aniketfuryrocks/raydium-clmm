@@ -28,8 +28,7 @@ anchor-spl = { version = "0.29.0", features = ["metadata"] }
 solana-program = "1.18.16"
 spl-memo = "4.0.0"
 uint = { git = "https://github.com/raydium-io/parity-common", package = "uint" }
-spl-token-metadata-interface = { version = "=0.2.0" }
-bytemuck = { version = "1.19.0", features = ["derive", "min_const_generics"] }
+bytemuck = { version = "1.21.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 solana-security-txt = "1.1.1"
 
@@ -43,6 +42,7 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 overflow-checks = true
+
 [profile.release.build-override]
 opt-level = 3
 incremental = false
