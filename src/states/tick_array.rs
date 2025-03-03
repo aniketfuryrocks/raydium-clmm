@@ -29,6 +29,18 @@ pub struct TickArrayState {
 impl TickArrayState {
     pub const LEN: usize = 8 + 32 + 4 + TickState::LEN * TICK_ARRAY_SIZE_USIZE + 1 + 115;
 
+    pub fn derive_key(pool_id: &Pubkey, start_tick_index: i32, program_id: &Pubkey) -> Pubkey {
+        Pubkey::find_program_address(
+            &[
+                TICK_ARRAY_SEED.as_bytes(),
+                pool_id.as_ref(),
+                &start_tick_index.to_be_bytes(),
+            ],
+            program_id,
+        )
+        .0
+    }
+
     pub fn key(&self) -> Pubkey {
         Pubkey::find_program_address(
             &[

@@ -9,7 +9,6 @@ use crate::states::*;
 use crate::util::get_recent_epoch;
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use solana_program::program_option::COption;
 #[cfg(feature = "enable-log")]
 use std::convert::identity;
 use std::ops::{BitAnd, BitOr, BitXor};
@@ -234,101 +233,6 @@ impl PoolState {
         self.padding2 = [0; 32];
         self.observation_key = observation_state_key;
 
-        Ok(())
-    }
-
-    pub fn initialize_reward(
-        &mut self,
-        open_time: u64,
-        end_time: u64,
-        reward_per_second_x64: u128,
-        token_mint: &Pubkey,
-        token_mint_freeze_authority: COption<Pubkey>,
-        token_vault: &Pubkey,
-        authority: &Pubkey,
-        operation_state: &OperationState,
-    ) -> Result<()> {
-        let reward_infos = self.reward_infos;
-        let lowest_index = match reward_infos.iter().position(|r| !r.initialized()) {
-            Some(lowest_index) => lowest_index,
-            None => return Err(ErrorCode::FullRewardInfo.into()),
-        };
-
-        if lowest_index >= REWARD_NUM {
-            return Err(ErrorCode::FullRewardInfo.into());
-        }
-
-        // one of first two reward token must be a vault token and the last reward token must be controled by the admin
-        let reward_mints: Vec<Pubkey> = reward_infos
-            .into_iter()
-            .map(|item| item.token_mint)
-            .collect();
-        // check init token_mint is not already in use
-        require!(
-            !reward_mints.contains(token_mint),
-            ErrorCode::RewardTokenAlreadyInUse
-        );
-        let whitelist_mints = operation_state.whitelist_mints.to_vec();
-        if lowest_index == REWARD_NUM - 3 {
-            // The current init token is the first.
-            // If the first reward is neither token_mint_0 nor token_mint_1, and is not in whitelist_mints, then this token_mint cannot have freeze_authority.
-            if *token_mint != self.token_mint_0
-                && *token_mint != self.token_mint_1
-                && !whitelist_mints.contains(token_mint)
-            {
-                require!(
-                    token_mint_freeze_authority.is_none(),
-                    ErrorCode::ExceptRewardMint
-                );
-            }
-        }
-        if lowest_index == REWARD_NUM - 2 {
-            // The current init token is the penult.
-            if !reward_mints.contains(&self.token_mint_0)
-                && !reward_mints.contains(&self.token_mint_1)
-            {
-                // If token_mint_0 or token_mint_1 is not contained in the initialized rewards token,
-                // the current init reward token mint must be token_mint_0 or token_mint_1 or one of the whitelist_mints.
-                require!(
-                    *token_mint == self.token_mint_0
-                        || *token_mint == self.token_mint_1
-                        || whitelist_mints.contains(token_mint),
-                    ErrorCode::ExceptRewardMint
-                );
-            } else {
-                // If token_mint_0 or token_mint_1 is contained in the initialized rewards token,
-                // the current init reward token mint is not in one of the whitelist_mints, then this token_mint cannot have freeze_authority.
-                if !whitelist_mints.contains(token_mint) {
-                    require!(
-                        token_mint_freeze_authority.is_none(),
-                        ErrorCode::ExceptRewardMint
-                    );
-                }
-            }
-        } else if lowest_index == REWARD_NUM - 1 {
-            // the last reward token must be controled by the admin
-            require!(
-                *authority == crate::admin::id()
-                    || operation_state.validate_operation_owner(*authority),
-                ErrorCode::NotApproved
-            );
-        }
-
-        // self.reward_infos[lowest_index].reward_state = RewardState::Initialized as u8;
-        self.reward_infos[lowest_index].last_update_time = open_time;
-        self.reward_infos[lowest_index].open_time = open_time;
-        self.reward_infos[lowest_index].end_time = end_time;
-        self.reward_infos[lowest_index].emissions_per_second_x64 = reward_per_second_x64;
-        self.reward_infos[lowest_index].token_mint = *token_mint;
-        self.reward_infos[lowest_index].token_vault = *token_vault;
-        self.reward_infos[lowest_index].authority = *authority;
-        #[cfg(feature = "enable-log")]
-        msg!(
-            "reward_index:{}, reward_infos:{:?}",
-            lowest_index,
-            self.reward_infos[lowest_index],
-        );
-        self.recent_epoch = get_recent_epoch()?;
         Ok(())
     }
 
@@ -1022,64 +926,6 @@ pub mod pool_test {
             assert_eq!(
                 pool_state.get_status_by_bit(PoolStatusBitIndex::DecreaseLiquidity),
                 false
-            );
-        }
-    }
-
-    mod update_reward_infos_test {
-        use super::*;
-        use anchor_lang::prelude::Pubkey;
-        use std::convert::identity;
-        use std::str::FromStr;
-
-        #[test]
-        fn reward_info_test() {
-            let pool_state = &mut PoolState::default();
-            let operation_state = OperationState {
-                bump: 0,
-                operation_owners: [Pubkey::default(); OPERATION_SIZE_USIZE],
-                whitelist_mints: [Pubkey::default(); WHITE_MINT_SIZE_USIZE],
-            };
-            pool_state
-                .initialize_reward(
-                    1665982800,
-                    1666069200,
-                    10,
-                    &Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap(),
-                    COption::None,
-                    &Pubkey::default(),
-                    &Pubkey::default(),
-                    &operation_state,
-                )
-                .unwrap();
-
-            // before start time, nothing to update
-            let mut updated_reward_infos = pool_state.update_reward_infos(1665982700).unwrap();
-            assert_eq!(updated_reward_infos[0], pool_state.reward_infos[0]);
-
-            // pool liquidity is 0
-            updated_reward_infos = pool_state.update_reward_infos(1665982900).unwrap();
-            assert_eq!(
-                identity(updated_reward_infos[0].reward_growth_global_x64),
-                0
-            );
-
-            pool_state.liquidity = 100;
-            updated_reward_infos = pool_state.update_reward_infos(1665983000).unwrap();
-            assert_eq!(
-                identity(updated_reward_infos[0].last_update_time),
-                1665983000
-            );
-            assert_eq!(
-                identity(updated_reward_infos[0].reward_growth_global_x64),
-                10
-            );
-
-            // curr_timestamp grater than reward end time
-            updated_reward_infos = pool_state.update_reward_infos(1666069300).unwrap();
-            assert_eq!(
-                identity(updated_reward_infos[0].last_update_time),
-                1666069200
             );
         }
     }
