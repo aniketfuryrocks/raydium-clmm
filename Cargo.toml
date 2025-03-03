@@ -21,6 +21,8 @@ init_if_needed = []
 enable-log = []
 devnet = []
 paramset = []
+anchor-debug = []
+enable-power = []
 
 [dependencies]
 anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
